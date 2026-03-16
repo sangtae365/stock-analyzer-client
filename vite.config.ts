@@ -7,6 +7,7 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  base: '/stock-analyzer-client/', // GitHub Pages 배포 경로
   server: {
     port: 5173,
     proxy: {

@@ -5,7 +5,7 @@ import type {
   PopularKeywordResponse,
 } from '../types/stock';
 
-const BASE = '/api';
+const BASE = import.meta.env.VITE_API_BASE_URL ?? '/api';
 
 export async function fetchAllStocks(page = 0, size = 20): Promise<StockListResponse> {
   const res = await fetch(`${BASE}/stocks?page=${page}&size=${size}`);
