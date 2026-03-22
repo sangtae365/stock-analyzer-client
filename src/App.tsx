@@ -1,15 +1,20 @@
-import { useEffect, useState } from 'react';
-import { BarChart3, RefreshCw, LayoutList, TrendingUp } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { BarChart3, RefreshCw, LayoutList, TrendingUp, Swords } from 'lucide-react';
 import SearchBar from './components/SearchBar';
 import PopularKeywords from './components/PopularKeywords';
 import CategorySection from './components/CategorySection';
 import StockCard from './components/StockCard';
 import StockRanking from './components/StockRanking';
 import StockDetailModal from './components/StockDetailModal';
+import DebateSetup from './components/DebateSetup';
+import DebateChat from './components/DebateChat';
+import DebateConclusion from './components/DebateConclusion';
 import { analyzeByKeyword, fetchAllStocks, fetchPopularKeywords } from './api/stockApi';
+import { startDebate } from './api/debateApi';
 import type { StockAnalysisResponse, KeywordDto, Stock } from './types/stock';
+import type { DebateMessageEvent, ScoreDto } from './types/debate';
 
-type Tab = 'analyze' | 'ranking';
+type Tab = 'analyze' | 'ranking' | 'debate';
 
 const EXAMPLE_KEYWORDS = ['AI', '반도체', '2차전지', '바이오', '방산', '로봇', '게임', '금융', '자동차', '리노공업'];
 
@@ -22,7 +27,17 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastKeyword, setLastKeyword] = useState('');
-  const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
+  const [selectedStock, setSelectedStock] = useState<{ ticker: string; name: string } | null>(null);
+
+  // 토론 상태
+  const [debateStocks, setDebateStocks] = useState<string[]>([]);
+  const [debateMessages, setDebateMessages] = useState<DebateMessageEvent[]>([]);
+  const [debateScores, setDebateScores] = useState<ScoreDto[] | null>(null);
+  const [debateSummary, setDebateSummary] = useState<string>('');
+  const [debateLoading, setDebateLoading] = useState(false);
+  const [debateLoadingStep, setDebateLoadingStep] = useState<string>('');
+  const [debateError, setDebateError] = useState<string | null>(null);
+  const debateStarted = useRef(false);
 
   useEffect(() => {
     fetchAllStocks(0, 30)
@@ -33,6 +48,45 @@ export default function App() {
       .then(res => setKeywords(res.keywords))
       .catch(() => {});
   }, []);
+
+  const handleDebateStart = async (stocks: string[]) => {
+    setDebateStocks(stocks);
+    setDebateMessages([]);
+    setDebateScores(null);
+    setDebateSummary('');
+    setDebateError(null);
+    setDebateLoading(true);
+    setDebateLoadingStep('');
+    debateStarted.current = true;
+
+    await startDebate(
+      stocks,
+      (event) => {
+        if (event.type === 'loading') {
+          setDebateLoadingStep(event.message);
+        } else if (event.type === 'message') {
+          setDebateLoadingStep('');
+          setDebateMessages(prev => [...prev, event]);
+        } else if (event.type === 'conclusion') {
+          setDebateScores(event.scores);
+          setDebateSummary(event.summary);
+          setDebateLoading(false);
+          setDebateLoadingStep('');
+        } else if (event.type === 'done') {
+          setDebateLoading(false);
+          setDebateLoadingStep('');
+        } else if (event.type === 'error') {
+          setDebateError(event.message);
+          setDebateLoading(false);
+          setDebateLoadingStep('');
+        }
+      },
+      (err) => {
+        setDebateError(err.message);
+        setDebateLoading(false);
+      }
+    );
+  };
 
   const handleSearch = async (keyword: string) => {
     setTab('analyze');
@@ -78,6 +132,15 @@ export default function App() {
               <TrendingUp className="w-3.5 h-3.5" />
               실시간 순위
             </button>
+            <button
+              onClick={() => setTab('debate')}
+              className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
+                tab === 'debate' ? 'bg-violet-600 text-white' : 'text-slate-500 hover:bg-slate-100'
+              }`}
+            >
+              <Swords className="w-3.5 h-3.5" />
+              AI 토론
+            </button>
           </div>
         </div>
       </header>
@@ -113,7 +176,69 @@ export default function App() {
 
         {/* 실시간 순위 탭 */}
         {tab === 'ranking' && (
-          <StockRanking onSelectTicker={setSelectedTicker} />
+          <StockRanking onSelectTicker={(ticker, name) => setSelectedStock({ ticker, name })} />
+        )}
+
+        {/* AI 토론 탭 */}
+        {tab === 'debate' && (
+          <div className="space-y-6">
+            {!debateStarted.current || (!debateLoading && debateMessages.length === 0 && !debateScores) ? (
+              <DebateSetup onStart={handleDebateStart} loading={debateLoading} />
+            ) : (
+              <>
+                {/* 종목 배지 */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs text-slate-400">토론 종목:</span>
+                  {debateStocks.map(s => (
+                    <span key={s} className="text-xs font-medium px-2.5 py-1 rounded-full bg-violet-100 text-violet-700">
+                      {s}
+                    </span>
+                  ))}
+                  <button
+                    onClick={() => { debateStarted.current = false; setDebateMessages([]); setDebateScores(null); }}
+                    className="ml-auto text-xs text-slate-400 hover:text-slate-600 transition-colors"
+                  >
+                    다시 설정
+                  </button>
+                </div>
+
+                {/* 오류 */}
+                {debateError && (
+                  <div className="rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm px-5 py-4">
+                    {debateError}
+                  </div>
+                )}
+
+                {/* 초기 로딩 (첫 메시지 대기) */}
+                {debateLoading && debateMessages.length === 0 && (
+                  <div className="flex flex-col items-center gap-4 py-16 text-slate-500">
+                    <RefreshCw className="w-8 h-8 animate-spin text-violet-500" />
+                    <div className="text-center space-y-1">
+                      <p className="text-sm font-medium text-slate-700">
+                        {debateLoadingStep || 'AI 에이전트가 토론을 준비하고 있습니다...'}
+                      </p>
+                      <p className="text-xs text-slate-400">실시간 시세 조회 및 심층 분석 중</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* 채팅 */}
+                {debateMessages.length > 0 && (
+                  <DebateChat
+                    messages={debateMessages}
+                    stocks={debateStocks}
+                    loading={debateLoading}
+                    loadingStep={debateLoadingStep}
+                  />
+                )}
+
+                {/* 결론 */}
+                {debateScores && (
+                  <DebateConclusion scores={debateScores} summary={debateSummary} />
+                )}
+              </>
+            )}
+          </div>
         )}
 
         {/* 키워드 분석 탭 */}
@@ -145,7 +270,7 @@ export default function App() {
                       <StockCard
                         key={s.ticker}
                         stock={{ ticker: s.ticker, name: s.name, price: s.price, changeRate: s.changeRate, summary: '' }}
-                        onClick={() => setSelectedTicker(s.ticker)}
+                        onClick={() => setSelectedStock({ ticker: s.ticker, name: s.name })}
                       />
                     ))}
                   </div>
@@ -168,7 +293,7 @@ export default function App() {
                   <CategorySection
                     key={category.category}
                     category={category}
-                    onSelectTicker={setSelectedTicker}
+                    onSelectTicker={(ticker, name) => setSelectedStock({ ticker, name })}
                   />
                 ))}
 
@@ -184,10 +309,11 @@ export default function App() {
       </main>
 
       {/* 종목 상세 모달 */}
-      {selectedTicker && (
+      {selectedStock && (
         <StockDetailModal
-          ticker={selectedTicker}
-          onClose={() => setSelectedTicker(null)}
+          ticker={selectedStock.ticker}
+          name={selectedStock.name}
+          onClose={() => setSelectedStock(null)}
         />
       )}
     </div>

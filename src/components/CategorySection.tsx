@@ -10,7 +10,7 @@ const CATEGORY_CONFIG: Record<string, { icon: React.ReactNode; color: string; ba
 
 interface Props {
   category: Category;
-  onSelectTicker?: (ticker: string) => void;
+  onSelectTicker?: (ticker: string, name: string) => void;
 }
 
 export default function CategorySection({ category, onSelectTicker }: Props) {
@@ -31,7 +31,7 @@ export default function CategorySection({ category, onSelectTicker }: Props) {
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {category.stocks.map(stock => (
-          <StockCard key={stock.ticker} stock={stock} onClick={() => onSelectTicker?.(stock.ticker)} />
+          <StockCard key={stock.ticker} stock={stock} onClick={() => onSelectTicker?.(stock.ticker, stock.name)} />
         ))}
       </div>
     </div>

@@ -4,7 +4,7 @@ import { fetchVolumeRanking, fetchChangeRateRanking } from '../api/stockApi';
 import type { StockRankingResponse, RankedStock } from '../types/stock';
 
 interface Props {
-  onSelectTicker?: (ticker: string) => void;
+  onSelectTicker?: (ticker: string, name: string) => void;
 }
 
 type RankTab = 'volume' | 'rise' | 'fall';
@@ -116,7 +116,7 @@ export default function StockRanking({ onSelectTicker }: Props) {
             key={stock.ticker}
             stock={stock}
             rankType={tab}
-            onClick={() => onSelectTicker?.(stock.ticker)}
+            onClick={() => onSelectTicker?.(stock.ticker, stock.name)}
           />
         ))}
 

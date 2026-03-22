@@ -5,6 +5,7 @@ import type { StockDetail } from '../types/stock';
 
 interface Props {
   ticker: string;
+  name?: string;
   onClose: () => void;
 }
 
@@ -41,7 +42,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-export default function StockDetailModal({ ticker, onClose }: Props) {
+export default function StockDetailModal({ ticker, name, onClose }: Props) {
   const [detail, setDetail] = useState<StockDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -64,7 +65,9 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
           {detail ? (
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-bold text-slate-800 text-lg">{detail.name}</span>
+                <span className="font-bold text-slate-800 text-lg">
+                  {name ?? detail.name}
+                </span>
                 {detail.marketName && (
                   <span className="text-xs bg-violet-50 text-violet-600 px-2 py-0.5 rounded-full">{detail.marketName}</span>
                 )}
@@ -72,7 +75,9 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
               <span className="text-xs text-slate-400">{detail.ticker} · {detail.sector}</span>
             </div>
           ) : (
-            <span className="text-slate-600 font-medium">{ticker}</span>
+            <div>
+              <span className="font-bold text-slate-800 text-lg">{name ?? ticker}</span>
+            </div>
           )}
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors">
             <X className="w-4 h-4 text-slate-500" />
